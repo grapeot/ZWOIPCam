@@ -24,13 +24,15 @@ import numpy as np
 import zwoasi as asi
 
 # Set up logging
-logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.DEBUG)
 logger = logging.getLogger(__name__)
+formatter = logging.Formatter('%(asctime)s : %(levelname)s : %(message)s')
 logger.setLevel(logging.DEBUG)
 consoleHandler = logging.StreamHandler(sys.stderr)
 consoleHandler.setLevel(logging.DEBUG)
+consoleHandler.setFormatter(formatter)
 fileHandler = logging.handlers.RotatingFileHandler(filename="error.log",maxBytes=1024000, backupCount=10, mode="a")
 fileHandler.setLevel(logging.INFO)
+fileHandler.setFormatter(formatter)
 logger.addHandler(consoleHandler)
 logger.addHandler(fileHandler)
 
@@ -61,8 +63,15 @@ class CameraCapture(Thread):
     def __init__(self, output_stream, latest_stream):
         super(CameraCapture, self).__init__()
         self.terminate = False
-        logger.info('Initializing camera...')
+        self.initialize_camera()
 
+        logger.info('Camera initialization complete.')
+        self.stream = output_stream
+        self.latest_stream = latest_stream
+        self.start()
+
+    def initialize_camera(self):
+        logger.info('Initializing camera...')
         num_cameras = asi.get_num_cameras()
         if num_cameras == 0:
             raise RuntimeError('No ZWO camera was detected.')
@@ -93,11 +102,6 @@ class CameraCapture(Thread):
         self.camera.set_control_value(controls['AutoExpMaxExpMS']['ControlType'], 20000)
         self.camera.start_video_capture()
 
-        logger.info('Camera initialization complete.')
-        self.stream = output_stream
-        self.latest_stream = latest_stream
-        self.start()
-
     def run(self):
         logger.info('Start capturing...')
         try:
@@ -110,6 +114,10 @@ class CameraCapture(Thread):
                     img = self.camera.capture_video_frame(timeout=500 + 2 * settings['Exposure'] / 1000)
                 except Exception as e:
                     logger.error(e)
+                    self.camera.stop_exposure()
+                    self.camera.stop_video_capture()
+                    self.camera.close()
+                    self.initialize_camera()
                     continue
                 # convert the numpy array to PIL image
                 mode = None
