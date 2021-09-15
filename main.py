@@ -107,7 +107,7 @@ class CameraCapture(Thread):
                 logger.debug('Gain {gain:d}  Exposure: {exposure:f}'.format(gain=settings['Gain'],
                           exposure=settings['Exposure']))
                 try:
-                    img = self.camera.capture_video_frame(timeout=500 + 2 * settings['Exposure'])
+                    img = self.camera.capture_video_frame(timeout=500 + 2 * settings['Exposure'] / 1000)
                 except Exception as e:
                     logger.error(e)
                     continue
