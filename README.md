@@ -7,7 +7,7 @@ This project was tested on a Raspberry Pi 3 and Python 3, but I don't see a reas
 
 ### Usage
 
-1. Download ZWO ASI camera SDK from [their website](https://download.astronomy-imaging-camera.com/for-developer/) for your OS. Extract the content and put it to this project folder. You can also put it elsewhere. Just need to change the `SDK_PATH` variable in `main.py`.
+1. Download ZWO ASI camera SDK from [their website](https://download.astronomy-imaging-camera.com/for-developer/) for your OS. Extract the content and put it to this project folder. You can also put it elsewhere. Just need to change the `SDK_PATH` variable in `main.py`. If you want to execute the code without root privilege, please follow the instructions in the `lib/README` of the SDK.
 2. Use `python3 -m pip install -r requirements.txt` to install dependencies, which only contain a python binding to ZWO SDK for now.
 3. Use `python3 main.py` to launch the monitor.
 4. Use `http://<HOSTNAME>:8000/stream.mjpg` for the video stream, and `http://<HOSTNAME>:8000/latest_full.jpg` for the latest captured image.
@@ -22,7 +22,7 @@ This project was tested on a Raspberry Pi 3 and Python 3, but I don't see a reas
 
 ### 使用方法
 
-1. 从[官网](http://zwoasi.com/software)下载ZWO ASI相机SDK（需要点进“二次开发”）。解压到本项目的文件夹下。其实也可以把SDK目录放到其他地方，只要把`main.py`里面的`SDK_PATH`改一下就好。
+1. 从[官网](http://zwoasi.com/software)下载ZWO ASI相机SDK（需要点进“二次开发”）。解压到本项目的文件夹下。其实也可以把SDK目录放到其他地方，只要把`main.py`里面的`SDK_PATH`改一下就好。有一个小坑是需要看一下SDK的`lib/README`，跟着上面的步骤做一个简单的安装，这样才能不用root权限就可以运行。
 2. 用`python3 -m pip install -r requirements.txt`安装依赖。
 3. 用`python3 main.py`启动程序。
 4. 用`http://<HOSTNAME>:8000/stream.mjpg`来访问视频串流，用`http://<HOSTNAME>:8000/latest_full.jpg`来访问最新的静态jpg图像。
