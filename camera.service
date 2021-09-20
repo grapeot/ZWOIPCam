@@ -1,0 +1,17 @@
+[Unit]
+Description=All sky camera auto start script
+After=auditd.service systemd-user-sessions.service time-sync.target
+ 
+[Service]
+User=pi
+TimeoutStartSec=0
+Type=simple
+KillMode=process
+WorkingDirectory=/home/pi/code/ZWOIPCam
+ExecStart=python3 main.py
+Restart=always
+RestartSec=2
+LimitNOFILE=5555
+ 
+[Install]
+WantedBy=multi-user.target

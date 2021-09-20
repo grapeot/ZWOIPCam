@@ -11,6 +11,7 @@ This project was tested on a Raspberry Pi 3 and Python 3, but I don't see a reas
 2. Use `python3 -m pip install -r requirements.txt` to install dependencies, which only contain a python binding to ZWO SDK for now.
 3. Use `python3 main.py` to launch the monitor.
 4. Use `http://<HOSTNAME>:8000/stream.mjpg` for the video stream, and `http://<HOSTNAME>:8000/latest_full.jpg` for the latest captured image.
+5. This script can also be registered as a service, which automatically starts on system boot. We provide `camera.service` as a reference. In order to set it up, one could 1) change the `WorkingDirectory` in the `camera.service` file, and 2) run `enable_service.sh` with root privilege.
 
 ## 使用ZWO天文相机作为IP相机
 
@@ -26,3 +27,4 @@ This project was tested on a Raspberry Pi 3 and Python 3, but I don't see a reas
 2. 用`python3 -m pip install -r requirements.txt`安装依赖。
 3. 用`python3 main.py`启动程序。
 4. 用`http://<HOSTNAME>:8000/stream.mjpg`来访问视频串流，用`http://<HOSTNAME>:8000/latest_full.jpg`来访问最新的静态jpg图像。
+5. 这个脚本还可以作为一个系统服务开机自启动。要安装系统服务，我们需要1) 把`camera.service`文件里面的`WorkingDirectory`改为实际存放的目录位置，2) 用管理员权限（sudo）执行`enable_service.sh`.
