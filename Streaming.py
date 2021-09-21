@@ -35,6 +35,8 @@ class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
         super(StreamingServer, self).__init__(address, handler)
         self.output_stream = output_stream
         self.latest_stream = latest_stream
+        # Used for invokers to know the camera has stopped responding
+        self.last_update_timestamp = time()
 
 class StreamingHandler(server.BaseHTTPRequestHandler):
     def do_GET(self):
