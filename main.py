@@ -30,7 +30,7 @@ logger.setLevel(logging.DEBUG)
 consoleHandler = logging.StreamHandler(sys.stderr)
 consoleHandler.setLevel(logging.DEBUG)
 consoleHandler.setFormatter(formatter)
-fileHandler = logging.handlers.RotatingFileHandler(filename="/home/pi/code/allsky/error.log",maxBytes=1024000, backupCount=10, mode="a")
+fileHandler = logging.handlers.RotatingFileHandler(filename="/home/pi/code/ZWOIPCam/error.log",maxBytes=1024000, backupCount=10, mode="a")
 fileHandler.setLevel(logging.INFO)
 fileHandler.setFormatter(formatter)
 logger.addHandler(consoleHandler)
@@ -66,6 +66,7 @@ class CameraCapture(Thread):
         self.interval = interval
         self.last_gain = 0
         self.last_exposure = 0
+        self.server = None # Optional hook for updating the server
         self.initialize_camera()
 
         logger.info('Camera initialization complete.')
@@ -87,10 +88,7 @@ class CameraCapture(Thread):
         controls = self.camera.get_controls()
         logger.info(controls)
 
-        if camera_info['IsColorCam']:
-            self.camera.set_image_type(asi.ASI_IMG_RGB24)
-        else:
-            self.camera.set_image_type(asi.ASI_IMG_RAW8)
+        self.camera.set_image_type(asi.ASI_IMG_RAW8)
 
         self.camera.set_control_value(asi.ASI_BANDWIDTHOVERLOAD, 
                                 self.camera.get_controls()['BandWidth']['DefaultValue'],
@@ -98,10 +96,12 @@ class CameraCapture(Thread):
 
         # Set auto exposure value
         self.whbi = self.camera.get_roi_format()
-        self.camera.set_control_value(asi.ASI_WB_B, 99)
-        self.camera.set_control_value(asi.ASI_WB_R, 75)
-        self.camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, 100)
-        self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 160)
+        self.camera.auto_wb()
+        # Uncomment to enable manual white balance
+        # self.camera.set_control_value(asi.ASI_WB_B, 99)
+        # self.camera.set_control_value(asi.ASI_WB_R, 75)
+        self.camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, 425)
+        self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 130)
         self.camera.set_control_value(asi.ASI_EXPOSURE,
                                  controls['Exposure']['DefaultValue'],
                                  auto=True)
@@ -109,6 +109,8 @@ class CameraCapture(Thread):
                                  controls['Gain']['DefaultValue'],
                                  auto=True)
         self.camera.set_control_value(controls['AutoExpMaxExpMS']['ControlType'], 3000)
+        # Uncomment to enable flip
+        self.camera.set_control_value(asi.ASI_FLIP, 2)
         self.camera.start_video_capture()
 
     def run(self):
@@ -128,6 +130,8 @@ class CameraCapture(Thread):
                 self.last_exposure = settings['Exposure']
                 try:
                     img = self.camera.capture_video_frame(timeout=max(1000, 500 + 2 * settings['Exposure'] / 1000))
+                    if self.server is not None:
+                        self.server.last_update_timestamp = time()
                 except Exception as e:
                     logger.error(e)
                     self.camera.stop_exposure()
@@ -168,6 +172,7 @@ if __name__ == '__main__':
     try:
         address = ('', 8000)
         server = StreamingServer(address, StreamingHandler, stream_output, latest_output)
+        thread.server = server
         logger.info('Starting serving...')
         server.serve_forever()
     finally:

@@ -65,15 +65,20 @@ class StreamingHandler(server.BaseHTTPRequestHandler):
                     'Removed streaming client %s: %s',
                     self.client_address, str(e))
         elif self.path == '/latest.jpg' or self.path == '/latest_full.jpg':
-            self.send_response(200)
-            self.send_header('Age', 0)
-            self.send_header('Cache-Control', 'no-cache, private')
-            self.send_header('Pragma', 'no-cache')
-            frame = self.server.latest_stream.frame
-            self.send_header('Content-Type', 'image/jpeg')
-            self.send_header('Content-Length', len(frame))
-            self.end_headers()
-            self.wfile.write(frame)
+            if self.server.last_update_timestamp is not None and time() > self.server.last_update_timestamp + 20:
+                # hasn't been updated in 20 seconds, begin returning 404
+                self.send_error(404)
+                self.end_headers()
+            else:
+                self.send_response(200)
+                self.send_header('Age', 0)
+                self.send_header('Cache-Control', 'no-cache, private')
+                self.send_header('Pragma', 'no-cache')
+                frame = self.server.latest_stream.frame
+                self.send_header('Content-Type', 'image/jpeg')
+                self.send_header('Content-Length', len(frame))
+                self.end_headers()
+                self.wfile.write(frame)
         else:
             self.send_error(404)
             self.end_headers()
