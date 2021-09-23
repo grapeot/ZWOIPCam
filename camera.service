@@ -1,9 +1,9 @@
 [Unit]
-Description=All sky camera auto start script
+Description=ZWO Monitor Camera auto start script
 After=auditd.service systemd-user-sessions.service time-sync.target
  
 [Service]
-User=pi
+User=root
 TimeoutStartSec=0
 Type=simple
 KillMode=process

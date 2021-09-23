@@ -80,9 +80,22 @@ class CameraCapture(Thread):
         num_cameras = asi.get_num_cameras()
         if num_cameras == 0:
             raise RuntimeError('No ZWO camera was detected.')
-        cameras_found = asi.list_cameras()
-        camera_id = 0
-        self.camera = asi.Camera(camera_id)
+        try:
+            cameras_found = asi.list_cameras()
+            self.camera = asi.Camera(0)
+        except Exception as e:
+            # When the power is stable, this case is usually not recoverable except restart
+            logger.error(e)
+            logger.error("About to retry once")
+            try:
+                self.camera = asi.Camera(0)
+            except Exception as e:
+                logger.error(e)
+                logger.error("Still failed. About to restart in 60 seconds.")
+                sleep(60)
+                logger.error("About to restart now.")
+                system("reboot now")
+
         camera_info = self.camera.get_camera_property()
         logger.info(camera_info)
         controls = self.camera.get_controls()
@@ -110,7 +123,7 @@ class CameraCapture(Thread):
                                  auto=True)
         self.camera.set_control_value(controls['AutoExpMaxExpMS']['ControlType'], 3000)
         # Uncomment to enable flip
-        self.camera.set_control_value(asi.ASI_FLIP, 2)
+        # self.camera.set_control_value(asi.ASI_FLIP, 3)
         self.camera.start_video_capture()
 
     def run(self):
