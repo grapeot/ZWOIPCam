@@ -40,7 +40,7 @@ SDK_PATH = 'ASI_linux_mac_SDK_V1.20/lib/armv7/libASICamera2.so'
 asi.init(SDK_PATH)
 
 
-"""The worker thread to save the files in the backend"""
+# The worker thread to save the files in the backend
 class FileSaver(Thread):
     def __init__(self):
         super(FileSaver, self).__init__()
@@ -58,7 +58,52 @@ class FileSaver(Thread):
             finally:
                 del img
 
-"""The worker thread doing the heavy lifting"""
+
+# Checks Internet connection, and will restart the network service if it cannot access a host.
+class NetworkChecker(Thread):
+    def __init__(self):
+        super(NetworkChecker, self).__init__()
+        self.last_check_timestamp = 0
+        self.error_count = 0
+        self.has_tried_networking = False
+        self.terminate = False
+        # By default, it checks a connection with a timeout of 10 seconds, checks once 30 seconds.
+        # So in the case of network connection lost, it will take 400 seconds to respond.
+        self.CHECK_TIMEOUT = 10
+        self.CHECK_INTERVAL = 30
+        self.CHECK_URL = 'https://bing.com/'
+        self.MAX_ERROR_COUNT = 10
+        self.start()
+
+    def run(self):
+        logger.info('Network checker launches.')
+        while not self.terminate:
+            try:
+                if time() < self.last_check_timestamp + self.CHECK_INTERVAL:
+                    sleep(0.1)
+                    continue
+                self.last_check_timestamp = time()
+                requests.get(self.CHECK_URL, timeout=self.CHECK_TIMEOUT)
+                self.error_count = 0
+                self.has_tried_networking = False
+                logger.debug('Check {} succeeded.'.format(self.CHECK_URL))
+            except Exception as e:
+                self.error_count += 1
+                logger.error(e)
+                logger.error('NetworkChecker error count = {}'.format(self.error_count))
+                if self.error_count == 10:
+                    if not self.has_tried_networking:
+                        # First try to restart the networking service
+                        logger.error('About to restart the networking service.')
+                        system('service networking restart')
+                    else:
+                        logger.error("Still failed. About to restart in 60 seconds.")
+                        sleep(60)
+                        logger.error("About to restart now.")
+                        system("reboot now")
+
+
+# The worker thread that does the heavy lifting
 class CameraCapture(Thread):
     def __init__(self, output_stream, latest_stream, interval=0):
         super(CameraCapture, self).__init__()
@@ -116,10 +161,10 @@ class CameraCapture(Thread):
         self.camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, 425)
         self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 130)
         self.camera.set_control_value(asi.ASI_EXPOSURE,
-                                 controls['Exposure']['DefaultValue'],
+                                 100000,
                                  auto=True)
         self.camera.set_control_value(asi.ASI_GAIN,
-                                 controls['Gain']['DefaultValue'],
+                                 0,
                                  auto=True)
         self.camera.set_control_value(controls['AutoExpMaxExpMS']['ControlType'], 3000)
         # Uncomment to enable flip
@@ -170,10 +215,25 @@ class CameraCapture(Thread):
                 # Add some annotation
                 draw = ImageDraw.Draw(image)
                 pstring = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
-                draw.text((15, 15), pstring, fill='white')
+                draw.text((15, 15), pstring, fill='black')
                 # Write to the stream
                 image.save(self.stream, format='jpeg', quality=90)
                 image.save(self.latest_stream, format='jpeg', quality=90)
+                # Adaptive auto exposure. 7am-7pm => 120, 7pm-7am => 180.
+                # Do this only once in an hour
+                now = datetime.now()
+                if now.minute == 0 and now.second <= 1:
+                    if 7 <= datetime.now().hour <= 18:
+                        self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 100)
+                        # Too bright. Reduce gain and favor longer exposure
+                        self.camera.set_control_value(asi.ASI_GAIN,
+                                                 0,
+                                                 auto=True)
+                        self.camera.set_control_value(asi.ASI_EXPOSURE,
+                                                 100000,
+                                                 auto=True)
+                else:
+                    self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 160)
         finally:
             self.camera.stop_video_capture()
             self.camera.stop_exposure()
@@ -181,6 +241,7 @@ class CameraCapture(Thread):
 if __name__ == '__main__':
     stream_output = StreamingOutput()
     latest_output = StreamingOutput()
+    network_checker = NetworkChecker()
     thread = CameraCapture(stream_output, latest_output, 1)
     try:
         address = ('', 8000)
@@ -190,3 +251,4 @@ if __name__ == '__main__':
         server.serve_forever()
     finally:
         thread.terminate = True
+        network_checker.terminate = True
