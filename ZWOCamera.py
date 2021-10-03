@@ -5,14 +5,15 @@ from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 import zwoasi as asi
 
-SDK_PATH = 'ASI_linux_mac_SDK_V1.20/lib/armv7/libASICamera2.so'
+# Set this according to your device
+SDK_PATH = 'ASI_linux_mac_SDK_V1.20.1/lib/armv6/libASICamera2.so'
 asi.init(SDK_PATH)
 
 
 # The worker thread that does the heavy lifting
 class ZWOCamera(Thread):
     def __init__(self, output_stream, latest_stream, logger, interval=0):
-        super(CameraCapture, self).__init__()
+        super(ZWOCamera, self).__init__()
         self.terminate = False
         self.interval = interval
         self.last_gain = 0

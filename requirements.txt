@@ -1,2 +1,5 @@
 zwoasi
 picamera
+pillow
+numpy
+requests
