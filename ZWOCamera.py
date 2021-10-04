@@ -18,7 +18,7 @@ class ZWOCamera(Thread):
         self.interval = interval
         self.last_gain = 0
         self.last_exposure = 0
-        self.server = None # Optional hook for updating the server
+        self.server = None # Optional hook for updating the watchdog, which monitors when the last frame was updated
         self.logger = logger
         self.initialize_camera()
 

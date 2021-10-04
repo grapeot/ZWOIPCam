@@ -1,28 +1,9 @@
-from picamera import PiCamera
-from time import sleep, time
-from io import BytesIO
-from PIL import Image, ImageDraw, ImageFont
-from datetime import datetime
-from fractions import Fraction
-from os.path import join, exists
-from os import mkdir, system
-from threading import Condition, Thread
 from http import server
 from streaming import StreamingOutput, StreamingServer, StreamingHandler
-from copy import deepcopy
-from sys import exit
 from utils import NetworkChecker
-import socketserver
-import json
-import requests
-import math
-import requests
 import logging
 import logging.handlers
 import sys
-import numpy as np
-import zwoasi as asi
-from ZWOCamera import ZWOCamera
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -41,6 +22,10 @@ if __name__ == '__main__':
     stream_output = StreamingOutput()
     latest_output = StreamingOutput()
     network_checker = NetworkChecker(logger)
+    # Uncomment to use the proper camera
+    # from RPiCamera import RPiCamera
+    # thread = RPiCamera(stream_output, latest_output, logger, 1)
+    from ZWOCamera import ZWOCamera
     thread = ZWOCamera(stream_output, latest_output, logger, 1)
     try:
         address = ('', 8000)
