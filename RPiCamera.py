@@ -26,9 +26,10 @@ class RPiCamera(Thread):
 
     def initialize_camera(self):
         self.logger.info('Initializing camera...')
+        resolution = (1640, 1232)
         try:
             self.camera = PiCamera()
-            self.camera.resolution = (1440, 960)
+            self.camera.resolution = resolution
             self.camera.framerate_range = (Fraction(1, 10), Fraction(15, 1))
             self.camera.start_preview()
         except Exception as e:
@@ -37,7 +38,7 @@ class RPiCamera(Thread):
             self.logger.error("About to retry once")
             try:
                 self.camera = PiCamera()
-                self.camera.resolution = (2592, 1944)
+                self.camera.resolution = resolution
                 self.camera.framerate_range = (Fraction(1, 10), Fraction(15, 1))
                 self.camera.start_preview()
             except Exception as e:
@@ -47,9 +48,12 @@ class RPiCamera(Thread):
                 self.logger.error("About to restart now.")
                 system("reboot now")
         self.camera.awb_mode = 'auto'
+        self.camera.exposure_mode = 'night'
         self.camera.shutter_speed = 0 # auto exposure
+        # Uncomment to enable flips
+        self.camera.hflip = True
+        self.camera.vflip = True
         sleep(2)
-
 
     def run(self):
         self.logger.info('Start capturing...')
@@ -66,6 +70,7 @@ class RPiCamera(Thread):
                     gain_d=self.camera.analog_gain.denominator,
                     exposure=self.camera.exposure_speed))
                 try:
+                    buff.seek(0)
                     self.camera.capture(buff, format='jpeg', quality=90)
                     if self.server is not None:
                         self.server.last_update_timestamp = time()
@@ -85,4 +90,3 @@ class RPiCamera(Thread):
                 image.save(self.latest_stream, format='jpeg', quality=90)
         finally:
             self.camera.close()
-
