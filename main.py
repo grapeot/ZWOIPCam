@@ -24,9 +24,9 @@ if __name__ == '__main__':
     network_checker = NetworkChecker(logger)
     # Uncomment to use the proper camera
     # from RPiCamera import RPiCamera
-    # thread = RPiCamera(stream_output, latest_output, logger, 1)
+    # thread = RPiCamera(stream_output, latest_output, logger, 0)
     from ZWOCamera import ZWOCamera
-    thread = ZWOCamera(stream_output, latest_output, logger, 1)
+    thread = ZWOCamera(stream_output, latest_output, logger, 0)
     try:
         address = ('', 8000)
         server = StreamingServer(address, StreamingHandler, stream_output, latest_output)
