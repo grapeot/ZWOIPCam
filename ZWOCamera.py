@@ -121,7 +121,7 @@ class ZWOCamera(Thread):
                 image = Image.fromarray(img, mode=mode)
                 # Add some annotation
                 draw = ImageDraw.Draw(image)
-                pstring = datetime.now().strftime("%m/%d/%Y, %H:%M:%S")
+                pstring = datetime.now().strftime("%m/%d/%Y, %H:%M:%S") + f', gain {self.last_gain}, exp {self.last_exposure}'
                 draw.text((15, 15), pstring, fill='black')
                 # Write to the stream
                 image.save(self.stream, format='jpeg', quality=90)
