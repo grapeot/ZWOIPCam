@@ -2,11 +2,12 @@ from threading import Condition, Thread
 from os import system
 from time import sleep, time
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageStat
+import numpy as np
 import zwoasi as asi
 
 # Set this according to your device
-SDK_PATH = 'ASI_linux_mac_SDK_V1.20.1/lib/armv6/libASICamera2.so'
+SDK_PATH = 'ASI_linux_mac_SDK_V1.20/lib/armv7/libASICamera2.so'
 asi.init(SDK_PATH)
 
 
@@ -21,6 +22,11 @@ class ZWOCamera(Thread):
         self.server = None # Optional hook for updating the watchdog, which monitors when the last frame was updated
         self.logger = logger
         self.initialize_camera()
+
+        # auto stretch
+        self.auto_stretch = True
+        self.auto_stretch_threshold = 40
+        self.auto_stretch_target = 150
 
         self.logger.info('Camera initialization complete.')
         self.stream = output_stream
@@ -119,6 +125,16 @@ class ZWOCamera(Thread):
                 if self.whbi[3] == asi.ASI_IMG_RAW16:
                     mode = 'I;16'
                 image = Image.fromarray(img, mode=mode)
+                # If the image is too dark, auto stretch it
+                #import pdb; pdb.set_trace()
+                stat = ImageStat.Stat(image)
+                mean = stat.mean[0]
+                if self.auto_stretch and mean < self.auto_stretch_threshold:
+                    # apply a gamma transform
+                    gamma = np.log(self.auto_stretch_target) / np.log(mean)
+                    arr = np.asarray(image)
+                    arr = np.minimum(255, np.power(arr, gamma)).astype('uint8')
+                    image = Image.fromarray(arr, mode=image.mode)
                 # Add some annotation
                 draw = ImageDraw.Draw(image)
                 pstring = datetime.now().strftime("%m/%d/%Y, %H:%M:%S") + f', gain {self.last_gain}, exp {self.last_exposure}'
