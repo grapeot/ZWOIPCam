@@ -5,7 +5,7 @@ class AutoExposurer:
     def __init__(self, maxGain, maxExp):
         self.maxGain = maxGain
         self.maxExp = maxExp
-        self.skipFrames = 5  # the first skipFrames frames will be skipped
+        self.skipFrames = 0  # Introduce some latency in exposure adjustment
         self.gainStep = 50 if maxGain > 400 else 10
         self.targetBrightnessLow = 100
         self.targetBrightnessHigh = 160
@@ -19,11 +19,13 @@ class AutoExposurer:
         med = np.median(img)
         if self.targetBrightnessLow < med < self.targetBrightnessHigh:
             return (False, None, None, med)
+        # Need to adjust exposure. Add a latency to give the camera some responding time.
+        self.skipFrames = 2
         if med > self.targetBrightnessHigh:
             ratio = med / self.targetBrightness # > 1.0
             # Need to reduce exposure. Reduce gain if possible.
             gainDelta = self.gainStep * log2(ratio)
-            if exp >= gainDelta:
+            if gain >= gainDelta:
                 return (True, int(gain - gainDelta), int(exp), med)
             gainDeltaFulfilled = pow(2, gain)
             exposureDelta = ratio / gainDeltaFulfilled
