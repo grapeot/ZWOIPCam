@@ -3,6 +3,7 @@ from os import system
 from time import sleep, time
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont, ImageStat
+from AutoExposure import AutoExposurer
 import numpy as np
 import zwoasi as asi
 
@@ -21,6 +22,8 @@ class ZWOCamera(Thread):
         self.last_exposure = 0
         self.server = None # Optional hook for updating the watchdog, which monitors when the last frame was updated
         self.logger = logger
+        self.continuousFailureCount = 0
+        self.maxContinuousFailureCount = 5
         self.initialize_camera()
 
         # auto stretch
@@ -55,6 +58,8 @@ class ZWOCamera(Thread):
                 self.logger.error("About to restart now.")
                 system("reboot now")
 
+        # Uncomment to use binning
+        #self.camera.set_roi(bins=4)
         camera_info = self.camera.get_camera_property()
         self.logger.info(camera_info)
         controls = self.camera.get_controls()
@@ -72,15 +77,21 @@ class ZWOCamera(Thread):
         # Uncomment to enable manual white balance
         # self.camera.set_control_value(asi.ASI_WB_B, 99)
         # self.camera.set_control_value(asi.ASI_WB_R, 75)
-        self.camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, 425)
-        self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 130)
+        # Uncomment to use stock auto exposure
+        #self.useStockAutoExposure = True
+        #self.camera.set_control_value(asi.ASI_AUTO_MAX_GAIN, 425)
+        #self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 130)
+        #self.camera.set_control_value(controls['AutoExpMaxExpMS']['ControlType'], 3000)
+        # Use our own auto exposure
+        self.useStockAutoExposure = False
+        maxGain = controls['Gain']['MaxValue']
+        self.autoExposurer = AutoExposurer(maxGain, 500000) # us
         self.camera.set_control_value(asi.ASI_EXPOSURE,
-                                 100000,
-                                 auto=True)
+                                 1000,
+                                 auto=self.useStockAutoExposure)
         self.camera.set_control_value(asi.ASI_GAIN,
                                  0,
-                                 auto=True)
-        self.camera.set_control_value(controls['AutoExpMaxExpMS']['ControlType'], 3000)
+                                 auto=self.useStockAutoExposure)
         # Uncomment to enable flip
         # self.camera.set_control_value(asi.ASI_FLIP, 3)
         self.camera.start_video_capture()
@@ -96,16 +107,20 @@ class ZWOCamera(Thread):
                 last_timestamp = time()
                 # self.logger.debug('About to take photo.')
                 settings = self.camera.get_control_values()
-                self.logger.debug('Gain {gain:d}  Exposure: {exposure:f}'.format(gain=settings['Gain'],
-                          exposure=settings['Exposure']))
                 self.last_gain = settings['Gain']
                 self.last_exposure = settings['Exposure']
                 try:
-                    img = self.camera.capture_video_frame(timeout=max(1000, 500 + 2 * settings['Exposure'] / 1000))
+                    img = self.camera.capture_video_frame(timeout=max(5000, 500 + 10 * settings['Exposure'] / 1000))
                     if self.server is not None:
                         self.server.last_update_timestamp = time()
                 except Exception as e:
                     self.logger.error(e)
+                    self.continuousFailureCount += 1
+                    if self.continuousFailureCount >= self.maxContinuousFailureCount:
+                        self.logger.error("Max continuous failure count reached.. About to restart in 60 seconds.")
+                        sleep(60)
+                        self.logger.error("About to restart now.")
+                        system("reboot now")
                     self.camera.stop_exposure()
                     self.camera.stop_video_capture()
                     self.camera.close()
@@ -113,11 +128,30 @@ class ZWOCamera(Thread):
                     # Set the exposure and gain to the last known good value to reduce the auto exposure time
                     self.camera.set_control_value(asi.ASI_EXPOSURE,
                                              self.last_exposure,
-                                             auto=True)
+                                             auto=self.useStockAutoExposure)
                     self.camera.set_control_value(asi.ASI_GAIN,
                                              self.last_gain,
-                                             auto=True)
+                                             auto=self.useStockAutoExposure)
                     continue
+                self.continuousFailureCount = 0
+                # Update the auto exposure
+                result = self.autoExposurer.adjustExp(self.last_gain, self.last_exposure, img)
+                if result is None:
+                    # For unknown reason, sometimes the result would be None. Simply retry would solve the issue
+                    result = self.autoExposurer.adjustExp(self.last_gain, self.last_exposure, img)
+                    if result is None:
+                        continue
+                changed, newGain, newExp, med = result
+                if changed:
+                    self.camera.set_control_value(asi.ASI_EXPOSURE,
+                        newExp,
+                        auto=self.useStockAutoExposure)
+                    self.camera.set_control_value(asi.ASI_GAIN,
+                        newGain,
+                        auto=self.useStockAutoExposure)
+                    self.logger.debug(f'Changed {changed} Med: {med} Gain: {newGain} Exposure: {newExp}')
+                else:
+                    self.logger.debug(f'Changed {changed} Med: {med} Gain: {self.last_gain} Exposure: {self.last_exposure}')
                 # convert the numpy array to PIL image
                 mode = None
                 if len(img.shape) == 3:
@@ -126,7 +160,6 @@ class ZWOCamera(Thread):
                     mode = 'I;16'
                 image = Image.fromarray(img, mode=mode)
                 # If the image is too dark, auto stretch it
-                #import pdb; pdb.set_trace()
                 stat = ImageStat.Stat(image)
                 mean = stat.mean[0]
                 if self.auto_stretch and mean < self.auto_stretch_threshold:
@@ -138,25 +171,10 @@ class ZWOCamera(Thread):
                 # Add some annotation
                 draw = ImageDraw.Draw(image)
                 pstring = datetime.now().strftime("%m/%d/%Y, %H:%M:%S") + f', gain {self.last_gain}, exp {self.last_exposure}'
-                draw.text((15, 15), pstring, fill='black')
+                draw.text((15, 15), pstring, fill='white')
                 # Write to the stream
                 image.save(self.stream, format='jpeg', quality=90)
                 image.save(self.latest_stream, format='jpeg', quality=90)
-                # Adaptive auto exposure. 7am-7pm => 120, 7pm-7am => 180.
-                # Do this only once in an hour
-                now = datetime.now()
-                if now.minute == 0 and now.second <= 1:
-                    if 7 <= datetime.now().hour <= 18:
-                        self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 100)
-                        # Too bright. Reduce gain and favor longer exposure
-                        self.camera.set_control_value(asi.ASI_GAIN,
-                                                 0,
-                                                 auto=True)
-                        self.camera.set_control_value(asi.ASI_EXPOSURE,
-                                                 100000,
-                                                 auto=True)
-                else:
-                    self.camera.set_control_value(asi.ASI_AUTO_MAX_BRIGHTNESS, 160)
         finally:
             self.camera.stop_video_capture()
             self.camera.stop_exposure()
